@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AQI Reporting App</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .fade-in {
+            animation: fadeIn 0.5s ease-in;
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-blue-50 to-indigo-100 min-h-screen">
+    <div class="container mx-auto px-4 py-8 max-w-2xl">
+        <div class="bg-white rounded-lg shadow-xl p-8">
+            <h1 class="text-4xl font-bold text-gray-800 mb-2 text-center">Air Quality Index</h1>
+            <p class="text-gray-600 text-center mb-8">Check real-time air quality for any city</p>
+            
+            <!-- Search Form -->
+            <div class="mb-8">
+                <form id="aqiForm" class="flex gap-2">
+                    <input 
+                        type="text" 
+                        id="cityInput" 
+                        placeholder="Enter city name (e.g., London, New York, Tokyo)"
+                        class="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                        required
+                    >
+                    <button 
+                        type="submit"
+                        class="px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition-colors font-semibold"
+                    >
+                        Check AQI
+                    </button>
+                </form>
+            </div>
+
+            <!-- Loading State -->
+            <div id="loading" class="hidden text-center py-8">
+                <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+                <p class="mt-4 text-gray-600">Fetching AQI data...</p>
+            </div>
+
+            <!-- Error State -->
+            <div id="error" class="hidden bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-4">
+                <p id="errorMessage"></p>
+            </div>
+
+            <!-- Results -->
+            <div id="results" class="hidden fade-in">
+                <div class="mb-6">
+                    <h2 class="text-2xl font-semibold text-gray-800 mb-4" id="cityName"></h2>
+                    
+                    <!-- Current AQI -->
+                    <div class="mb-6">
+                        <h3 class="text-sm font-medium text-gray-600 mb-2">Current AQI</h3>
+                        <div id="currentAQICard" class="rounded-lg p-6 text-center shadow-md">
+                            <div class="text-6xl font-bold mb-2" id="currentAQIValue"></div>
+                            <div class="text-xl font-semibold mb-2" id="currentAQILabel"></div>
+                            <div class="text-sm text-gray-600" id="currentAQIDescription"></div>
+                        </div>
+                    </div>
+
+                    <!-- Daily Average -->
+                    <div class="mb-6">
+                        <h3 class="text-sm font-medium text-gray-600 mb-2">Daily Average AQI</h3>
+                        <div id="dailyAvgCard" class="rounded-lg p-6 text-center shadow-md">
+                            <div class="text-4xl font-bold mb-2" id="dailyAvgValue"></div>
+                            <div class="text-lg font-semibold" id="dailyAvgLabel"></div>
+                        </div>
+                    </div>
+
+                    <!-- Additional Info -->
+                    <div class="bg-gray-50 rounded-lg p-4">
+                        <h3 class="text-sm font-medium text-gray-600 mb-3">Pollutant Components (μg/m³)</h3>
+                        <div class="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm">
+                            <div>
+                                <span class="text-gray-600">PM2.5:</span>
+                                <span class="font-semibold ml-2" id="pm25"></span>
+                            </div>
+                            <div>
+                                <span class="text-gray-600">PM10:</span>
+                                <span class="font-semibold ml-2" id="pm10"></span>
+                            </div>
+                            <div>
+                                <span class="text-gray-600">O₃:</span>
+                                <span class="font-semibold ml-2" id="o3"></span>
+                            </div>
+                            <div>
+                                <span class="text-gray-600">NO₂:</span>
+                                <span class="font-semibold ml-2" id="no2"></span>
+                            </div>
+                            <div>
+                                <span class="text-gray-600">SO₂:</span>
+                                <span class="font-semibold ml-2" id="so2"></span>
+                            </div>
+                            <div>
+                                <span class="text-gray-600">CO:</span>
+                                <span class="font-semibold ml-2" id="co"></span>
+                            </div>
+                        </div>
+                        <p class="text-xs text-gray-500 mt-4" id="timestamp"></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- AQI Scale Reference -->
+        <div class="mt-6 bg-white rounded-lg shadow-lg p-6">
+            <h3 class="text-lg font-semibold text-gray-800 mb-4">AQI Scale Reference</h3>
+            <div class="space-y-2 text-sm">
+                <div class="flex items-center gap-3">
+                    <div class="w-12 h-12 rounded bg-green-500 flex items-center justify-center text-white font-bold">0-50</div>
+                    <div>
+                        <span class="font-semibold">Good</span>
+                        <span class="text-gray-600 ml-2">Air quality is satisfactory</span>
+                    </div>
+                </div>
+                <div class="flex items-center gap-3">
+                    <div class="w-12 h-12 rounded bg-yellow-500 flex items-center justify-center text-white font-bold">51-100</div>
+                    <div>
+                        <span class="font-semibold">Moderate</span>
+                        <span class="text-gray-600 ml-2">Acceptable for most people</span>
+                    </div>
+                </div>
+                <div class="flex items-center gap-3">
+                    <div class="w-12 h-12 rounded bg-orange-500 flex items-center justify-center text-white font-bold">101-150</div>
+                    <div>
+                        <span class="font-semibold">Unhealthy for Sensitive Groups</span>
+                        <span class="text-gray-600 ml-2">Members of sensitive groups may experience effects</span>
+                    </div>
+                </div>
+                <div class="flex items-center gap-3">
+                    <div class="w-12 h-12 rounded bg-red-500 flex items-center justify-center text-white font-bold">151-200</div>
+                    <div>
+                        <span class="font-semibold">Unhealthy</span>
+                        <span class="text-gray-600 ml-2">Everyone may begin to experience effects</span>
+                    </div>
+                </div>
+                <div class="flex items-center gap-3">
+                    <div class="w-12 h-12 rounded bg-purple-500 flex items-center justify-center text-white font-bold">201-300</div>
+                    <div>
+                        <span class="font-semibold">Very Unhealthy</span>
+                        <span class="text-gray-600 ml-2">Health alert: everyone may experience serious effects</span>
+                    </div>
+                </div>
+                <div class="flex items-center gap-3">
+                    <div class="w-12 h-12 rounded bg-red-800 flex items-center justify-center text-white font-bold">301+</div>
+                    <div>
+                        <span class="font-semibold">Hazardous</span>
+                        <span class="text-gray-600 ml-2">Health warning of emergency conditions</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
+
