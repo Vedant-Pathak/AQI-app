@@ -43,6 +43,12 @@ function updateUI(data) {
     document.getElementById('dailyAvgValue').textContent = dailyAvg;
     document.getElementById('dailyAvgLabel').textContent = dailyColor.label;
     
+    // Update cigarette equivalent
+    const cigarettes = data.cigarettesPerDay || 0;
+    document.getElementById('cigaretteCount').textContent = cigarettes;
+    const cigaretteLabel = cigarettes === 1 ? 'cigarette' : 'cigarettes';
+    document.getElementById('cigaretteLabel').textContent = cigaretteLabel;
+    
     // Update components
     const components = data.components || {};
     document.getElementById('pm25').textContent = (components.pm2_5 || 0).toFixed(1);

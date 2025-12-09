@@ -64,12 +64,17 @@ app.get('/api/aqi/:city', async (req, res) => {
     // Get daily average
     const dailyAverage = await getDailyAverage(city);
 
+    // Calculate cigarette equivalents
+    const pm25 = components.pm2_5 || 0;
+    const cigarettesPerDay = calculateCigaretteEquivalent(pm25, 24);
+
     res.json({
       city: city,
       currentAQI: usAQI,
       openWeatherAQI: currentAQI,
       dailyAverage: dailyAverage,
       components: components,
+      cigarettesPerDay: cigarettesPerDay,
       timestamp: new Date().toISOString()
     });
 
@@ -93,6 +98,9 @@ app.get('/api/aqi/:city', async (req, res) => {
       
       const dailyAverage = await getDailyAverage(city);
       
+      // Calculate cigarette equivalents for mock data
+      const mockCigarettes = calculateCigaretteEquivalent(25, 24);
+      
       return res.json({
         city: city,
         currentAQI: mockAQI,
@@ -107,6 +115,7 @@ app.get('/api/aqi/:city', async (req, res) => {
           pm10: 40,
           so2: 5
         },
+        cigarettesPerDay: mockCigarettes,
         timestamp: new Date().toISOString(),
         note: 'Using mock data - please set OPENWEATHER_API_KEY environment variable'
       });
@@ -138,6 +147,20 @@ function convertToUSAQI(owmAQI, components) {
   } else {
     return Math.round(300 + ((pm25 - 250.4) / 149.6) * 200);
   }
+}
+
+// Helper function to calculate cigarette equivalents
+// Based on research: 22μg/m³ PM2.5 per 24 hours = 1 cigarette
+// Formula: cigarettes per day = PM2.5 concentration / 22
+function calculateCigaretteEquivalent(pm25, hoursExposed = 24) {
+  if (!pm25 || pm25 <= 0) return 0;
+  
+  // 22μg/m³ per 24 hours = 1 cigarette
+  // For different exposure times: (PM2.5 / 22) * (hours / 24)
+  const cigarettes = (pm25 / 22) * (hoursExposed / 24);
+  
+  // Round to nearest integer (as per the reference calculator)
+  return Math.round(cigarettes);
 }
 
 app.listen(PORT, () => {
