@@ -70,6 +70,15 @@ function showError(message) {
     document.getElementById('errorMessage').textContent = message;
 }
 
+const CITY_NAME_PATTERN = /^[\p{L}][\p{L} .'-]{1,79}$/u;
+
+function isPlausibleCityName(city) {
+    if (!city) return false;
+    const trimmed = city.trim();
+    if (trimmed.length < 2 || trimmed.length > 80) return false;
+    return CITY_NAME_PATTERN.test(trimmed);
+}
+
 // Fetch AQI data
 async function fetchAQI(city) {
     try {
@@ -96,9 +105,11 @@ async function fetchAQI(city) {
 document.getElementById('aqiForm').addEventListener('submit', (e) => {
     e.preventDefault();
     const city = document.getElementById('cityInput').value.trim();
-    if (city) {
-        fetchAQI(city);
+    if (!isPlausibleCityName(city)) {
+        showError('Please enter a valid city name (letters, spaces, hyphens, apostrophes only).');
+        return;
     }
+    fetchAQI(city);
 });
 
 // Allow Enter key to submit

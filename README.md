@@ -1,4 +1,4 @@
-# AQI Reporting App
+OPENWEATHER# AQI Reporting App
 
 A simple Air Quality Index (AQI) reporting application that displays real-time air quality data for any city.
 
@@ -57,6 +57,15 @@ npm start
 4. The server will automatically load it
 
 **Note**: The app will work with mock data if no API key is provided, but for real data, you need an API key.
+
+### 2b. Optional: City Validation via Google or Bing
+
+To validate that a city name is legitimate (and not just a random string), you can enable a geocoding provider:
+
+- **Google Maps Geocoding**: set `GOOGLE_MAPS_API_KEY`
+- **Bing Maps Locations**: set `BING_MAPS_API_KEY`
+
+If neither is set, the app will fall back to OpenWeather geocoding (when `OPENWEATHER_API_KEY` is set). With no geocoding keys, only basic format validation is applied.
 
 ### 3. Run the Application
 

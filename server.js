@@ -7,6 +7,9 @@ const { initializeDatabase, saveAQIData, getDailyAverage } = require('./database
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const OPENWEATHER_API_KEY = process.env.OPENWEATHER_API_KEY;
+const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY;
+const BING_MAPS_API_KEY = process.env.BING_MAPS_API_KEY;
 
 // Middleware
 app.use(cors());
@@ -16,30 +19,132 @@ app.use(express.static('public'));
 // Initialize database
 initializeDatabase();
 
+const CITY_NAME_PATTERN = /^[\p{L}][\p{L} .'-]{1,79}$/u;
+const GOOGLE_CITY_TYPES = new Set([
+  'locality',
+  'postal_town',
+  'administrative_area_level_3',
+  'administrative_area_level_2',
+  'sublocality',
+  'sublocality_level_1'
+]);
+
+function isPlausibleCityName(city) {
+  if (!city) return false;
+  const trimmed = city.trim();
+  if (trimmed.length < 2 || trimmed.length > 80) return false;
+  return CITY_NAME_PATTERN.test(trimmed);
+}
+
+function isGoogleCityResult(result) {
+  const types = result?.types || [];
+  return types.some((type) => GOOGLE_CITY_TYPES.has(type));
+}
+
+async function geocodeWithGoogle(city) {
+  if (!GOOGLE_MAPS_API_KEY) return null;
+
+  const response = await axios.get('https://maps.googleapis.com/maps/api/geocode/json', {
+    params: {
+      address: city,
+      key: GOOGLE_MAPS_API_KEY
+    }
+  });
+
+  if (response.data?.status !== 'OK' || !response.data.results?.length) {
+    return null;
+  }
+
+  const result = response.data.results.find(isGoogleCityResult);
+  if (!result) return null;
+
+  return {
+    lat: result.geometry.location.lat,
+    lon: result.geometry.location.lng,
+    formattedName: result.formatted_address,
+    source: 'google'
+  };
+}
+
+async function geocodeWithBing(city) {
+  if (!BING_MAPS_API_KEY) return null;
+
+  const response = await axios.get('https://dev.virtualearth.net/REST/v1/Locations', {
+    params: {
+      q: city,
+      key: BING_MAPS_API_KEY,
+      maxResults: 5
+    }
+  });
+
+  const resources = response.data?.resourceSets?.[0]?.resources || [];
+  const result = resources.find((resource) => resource.entityType === 'PopulatedPlace');
+  if (!result) return null;
+
+  return {
+    lat: result.point?.coordinates?.[0],
+    lon: result.point?.coordinates?.[1],
+    formattedName: result.name,
+    source: 'bing'
+  };
+}
+
+async function geocodeWithOpenWeather(city) {
+  if (!OPENWEATHER_API_KEY || OPENWEATHER_API_KEY === 'YOUR_API_KEY_HERE') return null;
+
+  const response = await axios.get('http://api.openweathermap.org/geo/1.0/direct', {
+    params: {
+      q: city,
+      limit: 1,
+      appid: OPENWEATHER_API_KEY
+    }
+  });
+
+  if (!response.data || response.data.length === 0) {
+    return null;
+  }
+
+  const result = response.data[0];
+  return {
+    lat: result.lat,
+    lon: result.lon,
+    formattedName: result.name,
+    source: 'openweather'
+  };
+}
+
+async function geocodeCity(city) {
+  return (
+    (await geocodeWithGoogle(city)) ||
+    (await geocodeWithBing(city)) ||
+    (await geocodeWithOpenWeather(city))
+  );
+}
+
 // API endpoint to get AQI for a city
 app.get('/api/aqi/:city', async (req, res) => {
   try {
     const city = req.params.city;
+
+    if (!isPlausibleCityName(city)) {
+      return res.status(400).json({
+        error: 'Please enter a valid city name (letters, spaces, hyphens, apostrophes only).'
+      });
+    }
     
     // Using OpenWeatherMap Air Pollution API
     // Note: You'll need to get a free API key from https://openweathermap.org/api
     // For now, using a demo approach - you can replace with actual API key
-    const API_KEY = process.env.OPENWEATHER_API_KEY || 'YOUR_API_KEY_HERE';
-    
-    // First, get coordinates for the city
-    const geoResponse = await axios.get(`http://api.openweathermap.org/geo/1.0/direct`, {
-      params: {
-        q: city,
-        limit: 1,
-        appid: API_KEY
-      }
-    });
+    const API_KEY = OPENWEATHER_API_KEY || 'YOUR_API_KEY_HERE';
 
-    if (!geoResponse.data || geoResponse.data.length === 0) {
+    // Resolve coordinates with a geocoding provider (Google/Bing/OpenWeather).
+    const geoResult = await geocodeCity(city);
+    if (!geoResult) {
       return res.status(404).json({ error: 'City not found' });
     }
 
-    const { lat, lon } = geoResponse.data[0];
+    const { lat, lon } = geoResult;
+    const resolvedCityName = geoResult.formattedName || city;
 
     // Get air pollution data
     const aqiResponse = await axios.get(`http://api.openweathermap.org/data/2.5/air_pollution`, {
@@ -59,17 +164,17 @@ app.get('/api/aqi/:city', async (req, res) => {
     const usAQI = convertToUSAQI(currentAQI, components);
 
     // Save to database
-    await saveAQIData(city, usAQI, currentAQI, components);
+    await saveAQIData(resolvedCityName, usAQI, currentAQI, components);
 
     // Get daily average
-    const dailyAverage = await getDailyAverage(city);
+    const dailyAverage = await getDailyAverage(resolvedCityName);
 
     // Calculate cigarette equivalents
     const pm25 = components.pm2_5 || 0;
     const cigarettesPerDay = calculateCigaretteEquivalent(pm25, 24);
 
     res.json({
-      city: city,
+      city: resolvedCityName,
       currentAQI: usAQI,
       openWeatherAQI: currentAQI,
       dailyAverage: dailyAverage,
