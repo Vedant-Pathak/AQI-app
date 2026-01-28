@@ -41,7 +41,8 @@ const GOOGLE_CITY_TYPES = new Set([
   'administrative_area_level_3',
   'administrative_area_level_2',
   'sublocality',
-  'sublocality_level_1'
+  'sublocality_level_1',
+  'country' // For city-states like Singapore, Monaco, Vatican City
 ]);
 
 function isPlausibleCityName(city) {
@@ -244,10 +245,14 @@ app.get('/api/aqi/:city', async (req, res) => {
   } catch (error) {
     console.error('Error fetching AQI:', error.message);
     
-    if (error.response?.status === 401 || error.response?.status === 403) {
-      return res.status(401).json({
-        error: 'Google Maps API key is invalid or Air Quality API is not enabled. Please check your GOOGLE_MAPS_API_KEY and ensure the Air Quality API is enabled in your Google Cloud Console.'
+    if (error.response?.status === 400) {
+      return res.status(400).json({
+        error: 'Air quality data is not available for this location. The Google Air Quality API may not have coverage for this region.'
       });
+    }
+    
+    if (error.response?.status === 401 || error.response?.status === 403) {
+      return res.status(404).json({ error: 'City not found' });
     }
     
     if (error.response?.status === 404) {
